@@ -1,0 +1,31 @@
+type: vertical-stack
+cards:
+  - type: entities
+    title: AC Unit - SoftStart
+    entities:
+      - entity: switch.esphome_web_52afa0_read_status
+        name: Read Status
+      - entity: binary_sensor.esphome_web_52afa0_easystart_connected
+        name: EasyStart Connected
+      - entity: sensor.esphome_web_52afa0_easystart_diag
+        name: EasyStart Diag
+      - entity: sensor.esphome_web_52afa0_last_start_peak
+        name: Last Start Peak
+      - entity: sensor.esphome_web_52afa0_line_frequency
+        name: Line Frequency
+      - entity: sensor.esphome_web_52afa0_live_current
+        name: Live Current
+      - entity: sensor.esphome_web_52afa0_scpt_delay
+        name: SCPT Delay
+      - entity: sensor.esphome_web_52afa0_status
+        name: Status
+      - entity: sensor.esphome_web_52afa0_total_faults
+        name: Total Faults
+      - entity: sensor.esphome_web_52afa0_total_starts
+        name: Total Starts
+  - type: history-graph
+    entities:
+      - entity: binary_sensor.esphome_web_52afa0_easystart_connected
+    hours_to_show: 24
+    refresh_interval: 0
+    title: Connection History (24 Hours)
