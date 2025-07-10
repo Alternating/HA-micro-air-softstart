@@ -1,4 +1,5 @@
-# EasyStart Home Assistant Integration
+# EasyStart Home Assistant Integration 
+- https://www.microair.net/products/easystart-flex-home-ac-soft-starter
 
 This project integrates the Micro-Air EasyStart soft start device with Home Assistant using ESPHome and Bluetooth Low Energy (BLE) communication. Monitor your AC unit's performance, track connection history, and view real-time electrical data directly in your Home Assistant dashboard.
 
