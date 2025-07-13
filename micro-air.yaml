@@ -35,16 +35,36 @@ captive_portal:
 bluetooth_proxy:
   
 esp32_ble_tracker:
-  # Keep scanning active to detect when device comes online
+  # Always keep scanning to detect when EasyStart comes online
   scan_parameters:
     interval: 1100ms
     window: 1000ms
     active: true
+  # Add callback to detect when EasyStart appears
+  on_ble_advertise:
+    - mac_address: "C7:5B:B2:8E:D0:EC"
+      then:
+        - logger.log: "EasyStart detected - AC unit is powered on!"
+        - logger.log: "Auto-starting connection to EasyStart..."
+        - switch.turn_on: easystart_read
 
 ble_client:
-  - mac_address: "XX:XX:XX:XX:XX:XX" #Mac address of the EasyStart
+  - mac_address: "C7:5B:B2:8E:D0:EC" #Mac address of the EasyStart
     id: ble_client_1
-    auto_connect: true
+    auto_connect: false  # Don't auto-connect, let our logic handle it
+    # Add connection event handlers
+    on_connect:
+      then:
+        - logger.log: "EasyStart connected successfully!"
+        - binary_sensor.template.publish:
+            id: easystart_connected
+            state: ON
+    on_disconnect:
+      then:
+        - logger.log: "EasyStart disconnected - AC may have powered off"
+        - binary_sensor.template.publish:
+            id: easystart_connected
+            state: OFF
 
 # Connection status sensor
 binary_sensor:
@@ -192,20 +212,21 @@ switch:
   - platform: template
     id: easystart_read
     name: "Read Status"
+    internal: true  # Hide this from Home Assistant UI
     turn_on_action: 
       then:
         - switch.template.publish:
             id: easystart_read
             state: ON
-        - binary_sensor.template.publish:
-            id: easystart_connected
-            state: ON
-        - esp32_ble_tracker.stop_scan:
+        - logger.log: "Starting EasyStart data collection..."
+        # Don't stop scanning - keep it active to detect disconnections
         - ble_client.connect: ble_client_1
         - delay: 2s
         - while: 
             condition:
-              - switch.is_on: easystart_read
+              and:
+                - switch.is_on: easystart_read
+                - binary_sensor.is_on: easystart_connected  # Stop if we lose connection
             then:
               - ble_client.ble_write:
                   id: ble_client_1
@@ -213,31 +234,43 @@ switch:
                   characteristic_uuid: "d973f2e2-b19e-11e2-9e96-0800200c9a66"
                   value: [0x7B, 0x22, 0x43, 0x6D, 0x64, 0x22, 0x3A, 0x20, 0x52, 0x65, 0x61, 0x64, 0x4C, 0x69, 0x76, 0x65, 0x7D]
               - delay: 10s
+        - logger.log: "Data collection stopped - disconnecting..."
         - delay: 2s
         - ble_client.disconnect: ble_client_1
-        - binary_sensor.template.publish:
-            id: easystart_connected
-            state: OFF
-        - esp32_ble_tracker.start_scan:
     turn_off_action: 
       then:
         - switch.template.publish:
             id: easystart_read
             state: OFF
-        - binary_sensor.template.publish:
-            id: easystart_connected
-            state: OFF
+        - logger.log: "Read Status turned off manually"
 
-# Add automatic reconnection logic
+button:
+  - platform: template
+    name: "Update Now"
+    icon: "mdi:refresh"
+    on_press:
+      then:
+        - logger.log: "Manual update requested - forcing fresh data read..."
+        - if:
+            condition:
+              switch.is_on: easystart_read
+            then:
+              - logger.log: "Stopping current session for manual update..."
+              - switch.turn_off: easystart_read
+              - delay: 2s
+        - logger.log: "Starting manual data collection..."
+        - switch.turn_on: easystart_read
+
+# Simplified reconnection logic - let BLE detection handle most cases
 interval:
-  - interval: 60s
+  - interval: 300s  # Check every 5 minutes for stuck states
     then:
       - if:
           condition:
-            # Only try to reconnect if we're not currently reading and EasyStart is available
+            # If we think we're connected but switch got stuck off somehow
             and:
+              - binary_sensor.is_on: easystart_connected
               - switch.is_off: easystart_read
-              - binary_sensor.is_off: easystart_connected
           then:
-            - logger.log: "Attempting to auto-start reading EasyStart..."
+            - logger.log: "Connection exists but reading stopped - restarting..."
             - switch.turn_on: easystart_read
